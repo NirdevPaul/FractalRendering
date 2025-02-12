@@ -1,0 +1,45 @@
+#version 460
+
+layout(set = 0, binding = 0) uniform ParameterUBO {
+	vec2 lo_xy;
+	vec2 hi_xy;
+
+	vec2 julia_c;
+	int subdivisionCount;
+} ubo;
+
+layout(rgba16f,set = 0, binding = 1) uniform image2D image;
+
+float LIMIT = 4;
+float ITER_COUNT = 1000;
+
+vec2 complexSquare(vec2 z) {
+	return vec2(z.x*z.x - z.y*z.y, 2*z.x*z.y);
+}
+
+
+layout (local_size_x = 16, local_size_y = 16) in;
+void main() {
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(image);
+    if(texelCoord.x >= size.x || texelCoord.y >= size.y) {
+		return;
+	}
+
+	float re = mix(ubo.lo_xy.x, ubo.hi_xy.x, float(texelCoord.x) / size.x);
+	float im = mix(ubo.hi_xy.y, ubo.lo_xy.y, float(texelCoord.y) / size.y);
+
+	vec2 c = vec2(re, im);
+	vec2 z = vec2(0, 0);
+	int iter = 0;
+	for (; iter < ITER_COUNT && (z.x*z.x +z.y*z.y < LIMIT); ++iter) {
+		z = complexSquare(z) + c;
+	}
+
+	vec4 color = vec4(0, 0, 0, 1);
+	if (iter < ITER_COUNT) {
+		color = mix(color, vec4(1, 1, 1, 1), float(iter)/ITER_COUNT);
+	}
+	imageStore(image, texelCoord, color);
+}
+

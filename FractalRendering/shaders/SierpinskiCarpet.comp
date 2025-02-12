@@ -1,0 +1,87 @@
+#version 460
+
+layout(set = 0, binding = 0) uniform ParameterUBO {
+	vec2 lo_xy;
+	vec2 hi_xy;
+	vec2 julia_c;
+
+	int subdivisionCount;
+} ubo;
+struct Vertex {
+	vec4 pos;
+	vec4 color;
+};
+layout(std430, set = 1, binding = 0) buffer VertexBuffer {
+	Vertex vertices[];
+};
+
+layout(std430, set = 1, binding = 1) buffer IndexBuffer {
+	uint indices[];
+};
+
+vec2 carpify(int a, int n) {
+	vec2 deltas[8] = {{1., 0.}, {1., 1.}, {0., 1.}, {-1., 1.}, {-1., 0.}, {-1. , -1.}, {0., -1.}, {1., -1.}};
+	vec2 acc = vec2(0, 0);
+	for (int i = 0; i < n; ++i) {
+		acc += deltas[a%8];
+		acc /= 3.0f;
+		a /= 8;
+	}
+	return 2*acc;
+}
+
+layout (local_size_x = 64, local_size_y = 1) in;
+void main() {
+	/*
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(image);
+    if(texelCoord.x >= size.x || texelCoord.y >= size.y) {
+		return;
+	}
+	*/
+	int currIndex = int(gl_GlobalInvocationID.x);
+	if (currIndex >= pow(8, ubo.subdivisionCount)) {
+		return;
+	}
+
+	
+	/*
+	vertices[8*currIndex+0].pos = vec4(.0, .0, .0, .0);
+	vertices[8*currIndex+1].pos = vec4(.0, .1, .0, .0);
+	vertices[8*currIndex+2].pos = vec4(.1, .1, .0, .0);
+	vertices[8*currIndex+3].pos = vec4(.1, .0, .0, .0);
+	indices[12*currIndex + 0] = 8*currIndex+0;
+	indices[12*currIndex + 1] = 8*currIndex+1;
+	indices[12*currIndex + 2] = 8*currIndex+2;
+	indices[12*currIndex + 3] = 8*currIndex+2;
+	indices[12*currIndex + 4] = 8*currIndex+3;
+	indices[12*currIndex + 5] = 8*currIndex+0;
+	*/
+
+	
+	vec2 val = carpify(currIndex, ubo.subdivisionCount);
+	float r = pow(3.0f, -ubo.subdivisionCount);
+	vertices[4*currIndex + 0].pos.xy = val + vec2(-r, r);
+	vertices[4*currIndex + 1].pos.xy = val + vec2(-r, -r);
+	vertices[4*currIndex + 2].pos.xy = val + vec2(r, -r);
+	vertices[4*currIndex + 3].pos.xy = val + vec2(r, r);
+	for (int i = 0; i < 4; ++ i) {
+		vertices[4*currIndex + i].pos.x = mix(-1, 1, (vertices[4*currIndex + i].pos.x - ubo.lo_xy.x)/(ubo.hi_xy.x-ubo.lo_xy.x));
+		vertices[4*currIndex + i].pos.y = mix(1, -1,  (vertices[4*currIndex + i].pos.y - ubo.lo_xy.y)/(ubo.hi_xy.y-ubo.lo_xy.y));
+		vertices[4*currIndex + i].pos.z = 0.0f;
+		vertices[4*currIndex + i].pos.w = 1.0f;
+	}
+
+	vec4 white = vec4(1, 1, 1, 1);
+	vertices[4*currIndex + 0].color = white;
+	vertices[4*currIndex + 1].color = white;
+	vertices[4*currIndex + 2].color = white;
+	vertices[4*currIndex + 3].color = white;
+
+	indices[6*currIndex + 0] = 4*currIndex + 0;
+	indices[6*currIndex + 1] = 4*currIndex + 1;
+	indices[6*currIndex + 2] = 4*currIndex + 2;
+	indices[6*currIndex + 3] = 4*currIndex + 2;
+	indices[6*currIndex + 4] = 4*currIndex + 3;
+	indices[6*currIndex + 5] = 4*currIndex + 0;
+}

@@ -1,0 +1,99 @@
+#version 460
+
+layout(set = 0, binding = 0) uniform ParameterUBO {
+	vec2 lo_xy;
+	vec2 hi_xy;
+	vec2 julia_c;
+
+	int subdivisionCount;
+} ubo;
+struct Vertex {
+	vec4 pos;
+	vec4 color;
+};
+layout(std430, set = 1, binding = 0) buffer VertexBuffer {
+	Vertex vertices[];
+};
+
+layout(std430, set = 1, binding = 1) buffer IndexBuffer {
+	uint indices[];
+};
+
+
+float tetrahedron_height = sqrt(2.)/sqrt(3.);
+float tri_center_dist = inversesqrt(3.);
+vec3 deltas[4] = {
+	{0, 0, 3./4. * tetrahedron_height},
+	{0, tri_center_dist, -1./4. * tetrahedron_height},
+	{-1./2., -1./2. * tri_center_dist, -1./4. * tetrahedron_height},
+	{1./2., -1./2. * tri_center_dist, -1./4. * tetrahedron_height},
+};
+
+
+vec3 pyrify(int a, int n) {
+	vec3 acc = vec3(0, 0, 0);
+	for (int i = 0; i < n; ++i) {
+		acc += deltas[a%4];
+		acc /= 2.0f;
+		a /= 4;
+	}
+	return acc;
+}
+
+layout (local_size_x = 64, local_size_y = 1) in;
+void main() {
+	/*
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(image);
+    if(texelCoord.x >= size.x || texelCoord.y >= size.y) {
+		return;
+	}
+	*/
+	int currIndex = int(gl_GlobalInvocationID.x);
+	if (currIndex >= pow(4, ubo.subdivisionCount)) {
+		return;
+	}
+
+	vec3 val = pyrify(currIndex, ubo.subdivisionCount);
+
+	float r = pow(2.0f, -ubo.subdivisionCount);
+	/*
+	vertices[4*currIndex + 0].pos.xyz = val + r*deltas[0];
+	vertices[4*currIndex + 1].pos.xyz = val + r*deltas[1];
+	vertices[4*currIndex + 2].pos.xyz = val + r*deltas[2];
+	vertices[4*currIndex + 3].pos.xyz = val + r*deltas[3];
+	*/
+	for (int i = 0; i < 4; ++ i) {
+		//vec3 curr_pos = val + r*deltas[i];
+		//curr_pos = deltas[i];
+		/*
+		curr_pos.x = mix(-1., 1., (curr_pos.x - ubo.lo_xy.x)/(ubo.hi_xy.x-ubo.lo_xy.x));
+		curr_pos.y = mix(1., -1.,  (curr_pos.y - ubo.lo_xy.y)/(ubo.hi_xy.y-ubo.lo_xy.y));
+		*/
+		//curr_pos.x /= ((ubo.hi_xy.x - ubo.lo_xy.x)/2.f);
+		vertices[4*currIndex + i].pos.xyz = curr_pos;
+		vertices[4*currIndex + i].pos.w = 1.0f;
+	}
+
+	vec4 white = vec4(1, 1, 1, 1);
+	vertices[4*currIndex + 0].color = white;
+	vertices[4*currIndex + 1].color = white;
+	vertices[4*currIndex + 2].color = white;
+	vertices[4*currIndex + 3].color = white;
+
+	indices[12*currIndex + 0] = 4*currIndex + 3;
+	indices[12*currIndex + 1] = 4*currIndex + 2;
+	indices[12*currIndex + 2] = 4*currIndex + 1;
+
+	indices[12*currIndex + 3] = 4*currIndex + 0;
+	indices[12*currIndex + 4] = 4*currIndex + 1;
+	indices[12*currIndex + 5] = 4*currIndex + 2;
+
+	indices[12*currIndex + 6] = 4*currIndex + 0;
+	indices[12*currIndex + 7] = 4*currIndex + 2;
+	indices[12*currIndex + 8] = 4*currIndex + 3;
+
+	indices[12*currIndex + 9]  = 4*currIndex + 0;
+	indices[12*currIndex + 10] = 4*currIndex + 3;
+	indices[12*currIndex + 11] = 4*currIndex + 1;
+}
